@@ -41,7 +41,6 @@ int sampleCounter = 0;
 
 char commandBuffer[MAX_CHARS];
 float frequencyWindow[VIBRATION_COUNT+1];
-float hues[VIBRATION_COUNT];
 
 
 ////////////////////////////////////////////////////////////////////////////////
