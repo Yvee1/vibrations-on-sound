@@ -12,7 +12,7 @@
 // These values can be changed to alter the behavior of the spectrum display.
 ////////////////////////////////////////////////////////////////////////////////
 
-int SAMPLE_RATE_HZ = 9000;             // Sample rate of the audio in hertz.
+int SAMPLE_RATE_HZ = 50000;             // Sample rate of the audio in hertz.
 float SPECTRUM_MIN_DB = 30.0;          // Audio intensity (in decibels) that maps to low LED brightness.
 float SPECTRUM_MAX_DB = 60.0;          // Audio intensity (in decibels) that maps to high LED brightness.
 int VIBRATION_ENABLED = 1;             // Control if vibration motors should vibrate or not.  1 is true, 0 is false.
@@ -24,8 +24,9 @@ const int ANALOG_READ_RESOLUTION = 10; // Bits of resolution for the ADC.
 const int ANALOG_READ_AVERAGING = 16;  // Number of samples to average with each ADC reading.
 const int POWER_LED_PIN = 13;          // Output pin for power LED (pin 13 to use Teensy 3.0's onboard LED).
 
-const int VIBRATION_COUNT = 4;         // Number of vibration motors.  You should be able to increase this without
+const int VIBRATION_COUNT = 1;         // Number of vibration motors.  You should be able to increase this without
                                        // any other changes to the program.
+const int START_PIN = 10;              // Vibration motors starting at this pin, and counting up
 const int MAX_CHARS = 65;              // Max size of the input command buffer
 
 
@@ -62,8 +63,8 @@ void setup() {
 
   // Make vibration motor output pins starting at 3.
   for (int i = 0; i < VIBRATION_COUNT; i++){
-    pinMode(3+i, OUTPUT);
-    analogWrite(3+i, 0);
+    pinMode(START_PIN+i, OUTPUT);
+    setMotors(i, 0.);
   }
   
   // Clear the input command buffer
@@ -160,17 +161,20 @@ void spectrumLoop() {
     intensity = intensity > 1.0 ? 1.0 : intensity;
     setMotors(i, intensity);
 
+    Serial.print(i);
+    Serial.print(":  ");
     Serial.println(intensity);
   }
 }
 
 void setMotors(int i, float intensity){
   // Do PWM based on intensity
-  analogWrite(i+3, intensity * 255);
+  analogWrite(i+START_PIN, intensity * 255);
+ 
 
   // Alternative
-  boolean on = intensity < 0.5;
-  digitalWrite(i+3, on);
+//  boolean on = intensity < 0.5;
+//  digitalWrite(i+START_PIN, on);
 }
 
 
@@ -272,7 +276,6 @@ void parseCommand(char* command) {
   // Turn off the LEDs if the state changed.
   if (VIBRATION_ENABLED == 0) {
     for (int i = 0; i < VIBRATION_COUNT; ++i) {
-//      pixels.setPixelColor(i, 0);
       setMotors(i, 0.);
     }
   }
