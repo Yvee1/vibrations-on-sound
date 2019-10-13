@@ -12,23 +12,26 @@
 // These values can be changed to alter the behavior of the spectrum display.
 ////////////////////////////////////////////////////////////////////////////////
 
-int SAMPLE_RATE_HZ = 50000;             // Sample rate of the audio in hertz.
-float SPECTRUM_MIN_DB = 30.0;          // Audio intensity (in decibels) that maps to low LED brightness.
-float SPECTRUM_MAX_DB = 60.0;          // Audio intensity (in decibels) that maps to high LED brightness.
+int SAMPLE_RATE_HZ = 10000;             // Sample rate of the audio in hertz.
+float SPECTRUM_MIN_DB = 40.0;          // Audio intensity (in decibels) that maps to low LED brightness.
+float SPECTRUM_MAX_DB = 70.0;          // Audio intensity (in decibels) that maps to high LED brightness.
 int VIBRATION_ENABLED = 1;             // Control if vibration motors should vibrate or not.  1 is true, 0 is false.
                                        // Useful for turning the LED display on and off with commands from the serial port.
 const int FFT_SIZE = 256;              // Size of the FFT.  Realistically can only be at most 256 
                                        // without running out of memory for buffers and other state.
-const int AUDIO_INPUT_PIN = 14;        // Input ADC pin for audio data.
+const int AUDIO_INPUT_PIN = 15;        // Input ADC pin for audio data.
 const int ANALOG_READ_RESOLUTION = 10; // Bits of resolution for the ADC.
 const int ANALOG_READ_AVERAGING = 16;  // Number of samples to average with each ADC reading.
 const int POWER_LED_PIN = 13;          // Output pin for power LED (pin 13 to use Teensy 3.0's onboard LED).
 
-const int VIBRATION_COUNT = 1;         // Number of vibration motors.  You should be able to increase this without
+const int VIBRATION_COUNT = 3;         // Number of vibration motors.  You should be able to increase this without
                                        // any other changes to the program.
-const int START_PIN = 10;              // Vibration motors starting at this pin, and counting up
+const int START_PIN = 3;              // Vibration motors starting at this pin, and counting up
 const int MAX_CHARS = 65;              // Max size of the input command buffer
 
+const bool CUSTOM_RANGE = true;       // Whether we specify our own frequency windows
+float customRange[VIBRATION_COUNT*2] = {60, 130, 300, 750, 750, 4000}; // the custom frequency windows
+float amplificationFactor[VIBRATION_COUNT] = {1, 1, 3}; // Manually amplify respecitve frequency ranges
 
 ////////////////////////////////////////////////////////////////////////////////
 // INTERNAL STATE
@@ -42,7 +45,6 @@ int sampleCounter = 0;
 
 char commandBuffer[MAX_CHARS];
 float frequencyWindow[VIBRATION_COUNT+1];
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // MAIN SKETCH FUNCTIONS
@@ -58,8 +60,8 @@ void setup() {
   analogReadAveraging(ANALOG_READ_AVERAGING);
   
   // Turn on the power indicator LED.
-  pinMode(POWER_LED_PIN, OUTPUT);
-  digitalWrite(POWER_LED_PIN, HIGH);
+//  pinMode(POWER_LED_PIN, OUTPUT);
+//  digitalWrite(POWER_LED_PIN, HIGH);
 
   // Make vibration motor output pins starting at 3.
   for (int i = 0; i < VIBRATION_COUNT; i++){
@@ -70,8 +72,10 @@ void setup() {
   // Clear the input command buffer
   memset(commandBuffer, 0, sizeof(commandBuffer));
   
-  // Initialize spectrum display
-  spectrumSetup();
+  // Calculate frequency windows if needed
+  if (!CUSTOM_RANGE){
+    divideEvenly();
+  }
   
   // Begin sampling audio
   samplingBegin();
@@ -133,7 +137,7 @@ int frequencyToBin(float frequency) {
 // SPECTRUM DISPLAY FUNCTIONS
 ///////////////////////////////////////////////////////////////////////////////
 
-void spectrumSetup() {
+void divideEvenly() {
   // Set the frequency window values by evenly dividing the possible frequency
   // spectrum across the number of vibration motors.
   float windowSize = (SAMPLE_RATE_HZ / 2.0) / float(VIBRATION_COUNT);
@@ -147,12 +151,21 @@ void spectrumLoop() {
   // in the associated frequency window.
   float intensity, otherMean;
   for (int i = 0; i < VIBRATION_COUNT; ++i) {
-    windowMean(magnitudes, 
-               frequencyToBin(frequencyWindow[i]),
-               frequencyToBin(frequencyWindow[i+1]),
-               &intensity,
-               &otherMean);
+    if (!CUSTOM_RANGE){
+      windowMean(magnitudes, 
+                 frequencyToBin(frequencyWindow[i]),
+                 frequencyToBin(frequencyWindow[i+1]),
+                 &intensity,
+                 &otherMean);
+    } else {
+      windowMean(magnitudes, 
+                 frequencyToBin(customRange[2*i]),
+                 frequencyToBin(customRange[2*i+1]),
+                 &intensity,
+                 &otherMean);
+    }
     // Convert intensity to decibels.
+    intensity *= amplificationFactor[i];
     intensity = 20.0*log10(intensity);
     // Scale the intensity and clamp between 0 and 1.0.
     intensity -= SPECTRUM_MIN_DB;
@@ -162,19 +175,33 @@ void spectrumLoop() {
     setMotors(i, intensity);
 
     Serial.print(i);
-    Serial.print(":  ");
+    Serial.print(" | ");
+    Serial.print("[");
+    if (!CUSTOM_RANGE){
+      Serial.print(frequencyWindow[i]);
+      Serial.print(", ");
+      Serial.print(frequencyWindow[i+1]);
+    } else{
+      Serial.print(customRange[2*i]);
+      Serial.print(", ");
+      Serial.print(customRange[2*i+1]);
+    }
+    Serial.print("]  : ");
+//    if (i == 0){
     Serial.println(intensity);
+//    }
+//    Serial.println(magnitudes[100]);
   }
 }
 
 void setMotors(int i, float intensity){
   // Do PWM based on intensity
-  analogWrite(i+START_PIN, intensity * 255);
+//  analogWrite(i+START_PIN, intensity * 255);
  
 
   // Alternative
-//  boolean on = intensity < 0.5;
-//  digitalWrite(i+START_PIN, on);
+  boolean on = intensity > 0.5;
+  digitalWrite(i+START_PIN, on);
 }
 
 
@@ -185,6 +212,7 @@ void setMotors(int i, float intensity){
 void samplingCallback() {
   // Read from the ADC and store the sample data
   samples[sampleCounter] = (float32_t)analogRead(AUDIO_INPUT_PIN);
+//  Serial.println(samples[sampleCounter]);
   // Complex FFT functions require a coefficient for the imaginary part of the input.
   // Since we only have real data, set this coefficient to zero.
   samples[sampleCounter+1] = 0.0;
@@ -269,8 +297,8 @@ void parseCommand(char* command) {
   GET_AND_SET(SPECTRUM_MAX_DB)
   
   // Update spectrum display values if sample rate was changed.
-  if (strstr(command, "SET SAMPLE_RATE_HZ ") != NULL) {
-    spectrumSetup();
+  if (strstr(command, "SET SAMPLE_RATE_HZ ") != NULL && !CUSTOM_RANGE) {
+    divideEvenly();
   }
   
   // Turn off the LEDs if the state changed.
