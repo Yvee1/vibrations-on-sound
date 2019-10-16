@@ -23,6 +23,7 @@ const int AUDIO_INPUT_PIN = 15;        // Input ADC pin for audio data.
 const int ANALOG_READ_RESOLUTION = 10; // Bits of resolution for the ADC.
 const int ANALOG_READ_AVERAGING = 16;  // Number of samples to average with each ADC reading.
 const int POWER_LED_PIN = 13;          // Output pin for power LED (pin 13 to use Teensy 3.0's onboard LED).
+const int POT_PIN = 23;                // Input pin of potentiometer determining cutoff amplitude
 
 const int VIBRATION_COUNT = 3;         // Number of vibration motors.  You should be able to increase this without
                                        // any other changes to the program.
@@ -60,8 +61,11 @@ void setup() {
   analogReadAveraging(ANALOG_READ_AVERAGING);
   
   // Turn on the power indicator LED.
-//  pinMode(POWER_LED_PIN, OUTPUT);
-//  digitalWrite(POWER_LED_PIN, HIGH);
+  pinMode(POWER_LED_PIN, OUTPUT);
+  digitalWrite(POWER_LED_PIN, HIGH);
+
+  // Pot meter
+  pinMode(POT_PIN, INPUT);
 
   // Make vibration motor output pins starting at 3.
   for (int i = 0; i < VIBRATION_COUNT; i++){
@@ -99,6 +103,8 @@ void loop() {
     // Restart audio sampling.
     samplingBegin();
   }
+
+  Serial.println(analogRead(POT_PIN));
     
   // Parse any pending commands.
   parserLoop();
@@ -199,8 +205,9 @@ void setMotors(int i, float intensity){
 //  analogWrite(i+START_PIN, intensity * 255);
  
 
-  // Alternative
-  boolean on = intensity > 0.5;
+  // Cutoff value
+  float cutoff = map(analogRead(POT_PIN), 0, 1024, 0.2, 0.8);
+  boolean on = intensity > cutoff;
   digitalWrite(i+START_PIN, on);
 }
 
