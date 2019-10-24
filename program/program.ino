@@ -13,26 +13,26 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 int SAMPLE_RATE_HZ = 10000;             // Sample rate of the audio in hertz.
-float SPECTRUM_MIN_DB = 40.0;          // Audio intensity (in decibels) that maps to low LED brightness.
+float SPECTRUM_MIN_DB = 60.0;          // Audio intensity (in decibels) that maps to low LED brightness.
 float SPECTRUM_MAX_DB = 70.0;          // Audio intensity (in decibels) that maps to high LED brightness.
 int VIBRATION_ENABLED = 1;             // Control if vibration motors should vibrate or not.  1 is true, 0 is false.
                                        // Useful for turning the LED display on and off with commands from the serial port.
 const int FFT_SIZE = 256;              // Size of the FFT.  Realistically can only be at most 256 
                                        // without running out of memory for buffers and other state.
-const int AUDIO_INPUT_PIN = 15;        // Input ADC pin for audio data.
+const int AUDIO_INPUT_PIN = A0;        // Input ADC pin for audio data.
 const int ANALOG_READ_RESOLUTION = 10; // Bits of resolution for the ADC.
 const int ANALOG_READ_AVERAGING = 16;  // Number of samples to average with each ADC reading.
 const int POWER_LED_PIN = 13;          // Output pin for power LED (pin 13 to use Teensy 3.0's onboard LED).
 const int POT_PIN = 23;                // Input pin of potentiometer determining cutoff amplitude
 
-const int VIBRATION_COUNT = 3;         // Number of vibration motors.  You should be able to increase this without
+const int VIBRATION_COUNT = 4;         // Number of vibration motors.  You should be able to increase this without
                                        // any other changes to the program.
 const int START_PIN = 3;              // Vibration motors starting at this pin, and counting up
 const int MAX_CHARS = 65;              // Max size of the input command buffer
 
 const bool CUSTOM_RANGE = true;       // Whether we specify our own frequency windows
-float customRange[VIBRATION_COUNT*2] = {60, 130, 300, 750, 750, 4000}; // the custom frequency windows
-float amplificationFactor[VIBRATION_COUNT] = {1, 1, 3}; // Manually amplify respecitve frequency ranges
+float customRange[VIBRATION_COUNT*2] = {750, 4000, 60, 130, 60, 130, 300, 750}; 
+float amplificationFactor[VIBRATION_COUNT] = {3, 1, 1, 1}; // Manually amplify respecitve frequency ranges
 
 ////////////////////////////////////////////////////////////////////////////////
 // INTERNAL STATE
@@ -65,7 +65,7 @@ void setup() {
   digitalWrite(POWER_LED_PIN, HIGH);
 
   // Pot meter
-  pinMode(POT_PIN, INPUT);
+//  pinMode(POT_PIN, INPUT);
 
   // Make vibration motor output pins starting at 3.
   for (int i = 0; i < VIBRATION_COUNT; i++){
@@ -104,7 +104,6 @@ void loop() {
     samplingBegin();
   }
 
-  Serial.println(analogRead(POT_PIN));
     
   // Parse any pending commands.
   parserLoop();
@@ -206,7 +205,8 @@ void setMotors(int i, float intensity){
  
 
   // Cutoff value
-  float cutoff = map(analogRead(POT_PIN), 0, 1024, 0.2, 0.8);
+//  float cutoff = map(analogRead(POT_PIN), 0, 1024, 0.2, 0.8);
+  float cutoff = 0.5;
   boolean on = intensity > cutoff;
   digitalWrite(i+START_PIN, on);
 }
